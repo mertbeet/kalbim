@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bir hikaye 💌</title>
+<meta property="og:title" content="Bir hikaye 💌">
+<meta property="og:description" content="Aç ve izle, sonunda bir sorum var.">
+<style>
+  :root { --purple:#4b1d7a; --purple-light:#6a2fa8; --ink:#3a2330; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; overflow:hidden; }
+  body {
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Rounded","Segoe UI",sans-serif;
+    background:linear-gradient(180deg,#e9dcff 0%,#ffe9d6 60%,#ffd6e4 100%);
+    color:var(--ink);
+  }
+  #stage { position:fixed; inset:0; overflow:hidden; }
+
+  /* Yol */
+  .road {
+    position:absolute; left:50%; top:0; bottom:0; width:6px; transform:translateX(-50%);
+    background-image:repeating-linear-gradient(to bottom,rgba(255,255,255,.9) 0 28px,transparent 28px 64px);
+    background-size:6px 64px;
+    animation:roadmove .6s linear infinite;
+  }
+  @keyframes roadmove { from{background-position-y:0} to{background-position-y:64px} }
+
+  /* Yan taraftaki akan ağaçlar */
+  .side { position:absolute; top:0; width:22%; height:100%; overflow:hidden; }
+  .side.l { left:2%; } .side.r { right:2%; }
+  .track { position:absolute; left:0; right:0; top:0; height:200%;
+    display:flex; flex-direction:column; justify-content:space-around; align-items:center;
+    font-size:30px; animation:scroll 5s linear infinite; }
+  @keyframes scroll { from{transform:translateY(-50%)} to{transform:translateY(0)} }
+
+  /* Karakterler */
+  .char { position:absolute; left:50%; width:48px; margin-left:-24px; transition-property:top,left; transition-timing-function:linear; z-index:3; }
+  .char .body { display:block; animation:bob .35s ease-in-out infinite; }
+  .char .body svg { display:block; }
+  .char .mood { position:absolute; top:-30px; left:50%; transform:translateX(-50%); font-size:26px; }
+  @keyframes bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+  .char.stop .body { animation:none; }
+  .char.trip .body { animation:trip .7s ease-out forwards; transform-origin:50% 90%; }
+  @keyframes trip {
+    0%{transform:rotate(0)} 40%{transform:rotate(-70deg) translateY(-10px)} 70%{transform:rotate(25deg)} 100%{transform:rotate(0)}
+  }
+  #stone { position:absolute; left:50%; top:6%; transform:translateX(-50%); font-size:40px; opacity:0; transition:opacity .6s; z-index:2; }
+  #hug { position:absolute; left:50%; top:42%; transform:translate(-50%,-50%) scale(0); font-size:56px; z-index:4; transition:transform .6s cubic-bezier(.2,1.6,.4,1); }
+  #hug.on { transform:translate(-50%,-50%) scale(1); }
+
+  #caption {
+    position:absolute; left:0; right:0; bottom:calc(env(safe-area-inset-bottom) + 28px);
+    text-align:center; font-size:20px; font-weight:700; padding:0 24px; z-index:4;
+    text-shadow:0 1px 0 rgba(255,255,255,.7);
+    transition:opacity .4s;
+  }
+
+  /* Soru kartı */
+  #ask { position:absolute; inset:0; display:none; align-items:center; justify-content:center; z-index:10;
+    background:linear-gradient(160deg,#ffd6e4 0%,#ffe9d6 55%,#e9dcff 100%); }
+  .card {
+    width:min(92vw,420px); background:rgba(255,255,255,.8);
+    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+    border-radius:28px; padding:32px 24px 28px; text-align:center;
+    box-shadow:0 20px 50px rgba(75,29,122,.22); position:relative; z-index:2;
+    animation:pop .7s cubic-bezier(.2,1.4,.4,1) both;
+  }
+  @keyframes pop { from{transform:scale(.7);opacity:0} to{transform:scale(1);opacity:1} }
+  .emoji { font-size:64px; display:block; animation:beat 1.2s infinite; }
+  @keyframes beat { 0%,100%{transform:scale(1)} 50%{transform:scale(1.15)} }
+  h1 { font-size:22px; line-height:1.45; margin:14px 0 22px; }
+  .btns { display:flex; gap:14px; justify-content:center; align-items:center; min-height:60px; }
+  button.b { font:inherit; font-weight:700; border:0; border-radius:999px; padding:14px 30px; font-size:18px; cursor:pointer;
+    transition:transform .15s, font-size .2s, padding .2s; }
+  #yes { background:linear-gradient(135deg,var(--purple-light),var(--purple)); color:#fff; box-shadow:0 8px 20px rgba(75,29,122,.45); }
+  #yes:active { transform:scale(.95); }
+  #no { background:#fff; color:var(--ink); border:2px solid #d9cfe6; }
+  #no.run { position:fixed; z-index:20; transition:left .25s, top .25s; }
+  #final { display:none; }
+  #final h1 { font-size:26px; margin-bottom:0; }
+
+  .heart { position:fixed; top:-50px; z-index:30; pointer-events:none; animation:fall linear forwards; }
+  @keyframes fall { to { transform:translateY(120vh) rotate(360deg); opacity:.9; } }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <div class="road" id="road"></div>
+  <div class="side l"><div class="track" id="tl"></div></div>
+  <div class="side r"><div class="track" id="tr"></div></div>
+
+  <div id="stone">🪨</div>
+
+  <!-- Kadın: siyah saçlı, beyaz tenli -->
+  <div class="char" id="woman" style="top:60%; transition-duration:5s;">
+    <span class="mood" id="mood"></span>
+    <span class="body">
+      <svg viewBox="0 0 60 100" width="48" height="80" aria-hidden="true">
+        <rect x="19" y="68" width="8" height="26" rx="4" fill="#f6dccb"/>
+        <rect x="33" y="68" width="8" height="26" rx="4" fill="#f6dccb"/>
+        <path d="M13 24 a17 17 0 0 1 34 0 v30 q-17 7 -34 0z" fill="#111"/>
+        <path d="M30 36 L49 78 H11 Z" fill="#e0528a"/>
+        <circle cx="30" cy="23" r="13" fill="#f6dccb"/>
+        <path d="M16 23 a14 14 0 0 1 28 0 q-8 -9 -14 -6 q-6 -3 -14 6z" fill="#111"/>
+        <circle cx="25" cy="25" r="1.6" fill="#222"/><circle cx="35" cy="25" r="1.6" fill="#222"/>
+        <path d="M26.5 30 q3.5 3 7 0" stroke="#c0555f" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+      </svg>
+    </span>
+  </div>
+
+  <!-- Erkek: siyah saçlı, beyaz tenli -->
+  <div class="char" id="man" style="top:80%; transition-duration:8s;">
+    <span class="body">
+      <svg viewBox="0 0 60 100" width="48" height="80" aria-hidden="true">
+        <rect x="19" y="62" width="9" height="32" rx="4" fill="#2b2b3a"/>
+        <rect x="32" y="62" width="9" height="32" rx="4" fill="#2b2b3a"/>
+        <rect x="13" y="35" width="34" height="34" rx="12" fill="#3b5bdb"/>
+        <circle cx="30" cy="22" r="14" fill="#f6dccb"/>
+        <path d="M15.5 21 a14.5 14.5 0 0 1 29 0 q-5 -7 -14.500 -5 q-9.500 -2 -14.500 5z" fill="#111"/>
+        <circle cx="25" cy="25" r="1.6" fill="#222"/><circle cx="35" cy="25" r="1.6" fill="#222"/>
+        <path d="M26.5 30 q3.5 3 7 0" stroke="#b0555f" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+      </svg>
+    </span>
+  </div>
+
+  <div id="hug">❤️</div>
+  <div id="caption"></div>
+</div>
+
+<div id="ask">
+  <div class="card" id="q">
+    <h1>Seninle her şeyi yaşamak istiyorum.<br>Hayatıma başladığın yerden gelir misin artık?</h1>
+    <div class="btns">
+      <button class="b" id="yes">Evet 🤍</button>
+      <button class="b" id="no">Hayır</button>
+    </div>
+  </div>
+  <div class="card" id="final">
+    <h1>Biliyordum, kalbimin sahibi kalbime geri geldi 🤍</h1>
+  </div>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const road = $('road');
+  const man = $('man'), woman = $('woman'), stone = $('stone'), hug = $('hug'), cap = $('caption'), mood = $('mood');
+  const at = (ms, fn) => setTimeout(fn, ms);
+
+  // Ağaç ve çiçek şeridi (iki kat, kesintisiz döngü için)
+  const deco = ['🌳','🌷','🌲','🌸','🌳','🌿'];
+  function fillTrack(el){
+    let half = '';
+    for (let i=0;i<8;i++) half += '<span>'+deco[(i*3+Math.floor(Math.random()*2))%deco.length]+'</span>';
+    el.innerHTML = half + half;
+  }
+  fillTrack($('tl')); fillTrack($('tr'));
+
+  function say(t){ cap.style.opacity = 0; setTimeout(()=>{ cap.textContent = t; cap.style.opacity = 1; }, 250); }
+  function pauseScenery(){ document.querySelectorAll('.track').forEach(e=>e.style.animationPlayState='paused'); road.style.animationPlayState='paused'; }
+
+  // Sahne
+  say('Ona yaklaşmaya çalışıyorum…');
+  stone.style.opacity = .9;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    woman.style.top = '12%';   // benden uzaklaşıyor
+    man.style.top   = '58%';   // peşinden
+  }));
+
+  at(2500, () => say('Ama o her seferinde biraz daha uzaklaşıyor…'));
+
+  at(5100, () => {                     // taşa takılıyor
+    pauseScenery();
+    mood.textContent = '💫';
+    woman.classList.add('trip');
+    say('Sonra hayat araya bir taş koydu 🪨');
+  });
+
+  at(7300, () => {                     // geri koşuyor
+    woman.classList.remove('trip');
+    mood.textContent = '🥹';
+    woman.style.transitionDuration = '2.4s';
+    woman.style.top = '46%';
+    say('Kader… Bana doğru koşmaya başladı 💫');
+  });
+
+  at(9900, () => {                     // sarılma
+    mood.textContent = '';
+    man.classList.add('stop'); woman.classList.add('stop');
+    man.style.transitionDuration = '.7s'; woman.style.transitionDuration = '.7s';
+    man.style.top = '54%'; woman.style.top = '54%';
+    man.style.left = '54%'; woman.style.left = '46%';
+    stone.style.opacity = 0;
+    at(700, () => { hug.classList.add('on'); rain(30); });
+    say('Bazı şeyler gerçekten yazılıdır 🤍');
+  });
+
+  at(13200, () => { $('ask').style.display = 'flex'; });
+
+  // ----- Soru kartı -----
+  const yes = $('yes'), no = $('no');
+  let tries = 0;
+  function dodge(e){
+    if (e) e.preventDefault();
+    tries++;
+    no.classList.add('run');
+    const pad = 16, w = no.offsetWidth, h = no.offsetHeight;
+    no.style.left = (pad + Math.random()*(window.innerWidth  - w - pad*2)) + 'px';
+    no.style.top  = (pad + Math.random()*(window.innerHeight - h - pad*2)) + 'px';
+    yes.style.fontSize = Math.min(18 + tries*3, 40) + 'px';
+    yes.style.padding = (14+tries) + 'px ' + (30+tries*3) + 'px';
+  }
+  ['pointerenter','touchstart','mousedown','click'].forEach(ev => no.addEventListener(ev, dodge, {passive:false}));
+
+  // Sadece beyaz/kırmızı kalpler ve baş harfler (YM ve UY her zaman birlikte)
+  const set = ['🤍','❤️','🤍','❤️','🤍','❤️','YM','UY'];
+  function rain(count){
+    for (let i=0;i<count;i++){
+      const el = document.createElement('div');
+      el.className = 'heart';
+      const pick = set[Math.floor(Math.random()*set.length)];
+      el.textContent = pick;
+      if (pick === 'YM' || pick === 'UY') {
+        el.style.fontWeight = '800';
+        el.style.color = '#4b1d7a';
+        el.style.letterSpacing = '1px';
+        el.style.whiteSpace = 'nowrap';
+        el.style.textShadow = '0 1px 0 rgba(255,255,255,.8)';
+      }
+      el.style.left = Math.random()*100 + 'vw';
+      el.style.fontSize = (20 + Math.random()*26) + 'px';
+      el.style.animationDuration = (4 + Math.random()*4) + 's';
+      el.style.animationDelay = (Math.random()*1.2) + 's';
+      document.body.appendChild(el);
+      setTimeout(()=>el.remove(), 11000);
+    }
+  }
+  yes.addEventListener('click', () => {
+    $('q').style.display = 'none'; no.style.display = 'none';
+    $('final').style.display = 'block';
+    rain(60);
+    setInterval(()=>rain(14), 2500);
+  });
+</script>
+</body>
+</html>
